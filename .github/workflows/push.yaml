@@ -1,0 +1,58 @@
+name: Build CTranslate2 with DNNL
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout CTranslate2
+        uses: actions/checkout@v3
+        with:
+          repository: OpenNMT/CTranslate2
+          path: ctranslate2
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ ninja-build
+
+      - name: Install oneDNN (DNNL)
+        run: |
+          ONEDNN_VERSION=3.1.1
+          curl -L -O https://github.com/oneapi-src/oneDNN/archive/refs/tags/v${ONEDNN_VERSION}.tar.gz
+          tar xf *.tar.gz && rm *.tar.gz
+          cd oneDNN-*
+          INSTALL_DIR="$GITHUB_WORKSPACE/onednn-install"
+          mkdir -p "$INSTALL_DIR"
+          cmake \
+            -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DONEDNN_LIBRARY_TYPE=STATIC \
+            -DONEDNN_BUILD_EXAMPLES=OFF \
+            -DONEDNN_BUILD_TESTS=OFF \
+            -DONEDNN_ENABLE_WORKLOAD=INFERENCE \
+            -DONEDNN_ENABLE_PRIMITIVE="CONVOLUTION;REORDER" \
+            -DONEDNN_BUILD_GRAPH=OFF .
+          make -j$(nproc) install
+          cd ..
+          rm -rf oneDNN-*
+          echo "CMAKE_PREFIX_PATH=$GITHUB_WORKSPACE/onednn-install" >> $GITHUB_ENV
+          echo "LIBRARY_PATH=$GITHUB_WORKSPACE/onednn-install/lib" >> $GITHUB_ENV
+          echo "CPATH=$GITHUB_WORKSPACE/onednn-install/include" >> $GITHUB_ENV
+
+      - name: Build CTranslate2 with DNNL
+        run: |
+          mkdir -p ctranslate2/build
+          cd ctranslate2/build
+          cmake .. -DWITH_DNNL=ON -DCMAKE_BUILD_TYPE=Release
+          cmake --build . --parallel
+
+      - name: Test build
+        run: |
+          cd ctranslate2/build
+          ctest --output-on-failure
