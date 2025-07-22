@@ -49,7 +49,7 @@ jobs:
         run: |
           mkdir -p ctranslate2/build
           cd ctranslate2/build
-          cmake .. -DWITH_DNNL=ON -DWITH_MKL=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake .. -DWITH_DNNL=ON -DWITH_MKL=OFF -DOPENMP_RUNTIME=NONE -DCMAKE_BUILD_TYPE=Release
           cmake --build . --parallel
 
       - name: Test build
